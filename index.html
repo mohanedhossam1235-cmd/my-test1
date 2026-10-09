@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>منصة الاختبارات والتحديات الخاصة</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 
     <style>
         :root {
@@ -191,13 +190,24 @@
         let questions = [];
         let editingIndex = -1;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const qData = urlParams.get('q') || urlParams.get('d');
+        // دالتا التشفير وفك التشفير الآمنة للغة العربية
+        function encodeData(obj) {
+            const str = JSON.stringify(obj);
+            return encodeURIComponent(btoa(unescape(encodeURIComponent(str))));
+        }
 
-        if (qData) {
+        function decodeData(str) {
+            const jsonStr = decodeURIComponent(escape(atob(decodeURIComponent(str))));
+            return JSON.parse(jsonStr);
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawData = urlParams.get('q') || urlParams.get('d') || urlParams.get('data');
+
+        if (rawData) {
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('user-panel').classList.remove('hidden');
-            loadQuizFromUrl(qData);
+            loadQuizFromUrl(rawData);
         } else {
             loadLocalData();
         }
@@ -322,11 +332,9 @@
             }
 
             const quizObj = { t: title, q: questions };
-            const jsonStr = JSON.stringify(quizObj);
-            
-            let compressed = LZString.compressToEncodedURIComponent(jsonStr);
+            const encoded = encodeData(quizObj);
 
-            const fullUrl = `${window.location.origin}${window.location.pathname}?q=${compressed}`;
+            const fullUrl = `${window.location.origin}${window.location.pathname}?data=${encoded}`;
 
             document.getElementById('final-link').value = fullUrl;
             document.getElementById('link-box').classList.remove('hidden');
@@ -343,20 +351,16 @@
         let currentScore = 0;
         let userQuizData = null;
 
-        function loadQuizFromUrl(dataParam) {
+        function loadQuizFromUrl(dataStr) {
             try {
-                let jsonStr = LZString.decompressFromEncodedURIComponent(dataParam);
-                if (!jsonStr) {
-                    jsonStr = decodeURIComponent(atob(dataParam));
-                }
-                const parsed = JSON.parse(jsonStr);
+                const parsed = decodeData(dataStr);
                 userQuizData = {
                     title: parsed.t || parsed.title,
                     questions: parsed.q || parsed.questions
                 };
                 document.getElementById('user-quiz-title').innerText = userQuizData.title;
             } catch(e) {
-                alert("الرابط غير صالح.");
+                alert("الرابط غير صالح أو مقطوع.");
             }
         }
 
