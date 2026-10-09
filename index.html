@@ -172,11 +172,11 @@
                 <div id="questions-list" style="margin-top: 10px;"></div>
             </div>
 
-            <button class="btn btn-success" onclick="saveAndGenerateLink()" style="margin-top: 20px;">💾 حفظ ونشر الاختبار للناس</button>
+            <button class="btn btn-success" id="save-btn" onclick="saveAndGenerateLink()" style="margin-top: 20px;">💾 حفظ ونشر الاختبار للناس</button>
             
             <div id="link-box" class="hidden" style="margin-top: 15px; background: #0f172a; padding: 15px; border-radius: 10px;">
-                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط! شاركه مع الآخرين:</p>
-                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 12px; color: #60a5fa;">
+                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط القصير بنجاح! شاركه مع الآخرين:</p>
+                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 14px; color: #60a5fa; text-align: center; font-weight: bold;">
                 <button class="btn btn-primary" onclick="copyShareLink()">📋 نسخ الرابط</button>
             </div>
 
@@ -190,7 +190,7 @@
 
         <!-- واجهة الإجابة للزوار -->
         <div id="user-panel" class="hidden">
-            <h1 id="user-quiz-title">اختبار جديد</h1>
+            <h1 id="user-quiz-title">جاري تحميل الاختبار...</h1>
             
             <div id="user-name-step">
                 <p class="subtitle">من فضلك أدخل اسمك قبل البدء بالاختبار:</p>
@@ -224,15 +224,13 @@
         let editingIndex = -1;
 
         const urlParams = new URLSearchParams(window.location.search);
-        const encodedData = urlParams.get('data');
         const quizIdParam = urlParams.get('id');
 
-        if (encodedData) {
+        if (quizIdParam) {
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('user-panel').classList.remove('hidden');
-            loadQuizForUser(encodedData);
+            loadQuizFromFirebase(quizIdParam);
         } else {
-            // تحميل البيانات المحفوظة محلياً إن وجدت
             loadLocalData();
         }
 
@@ -355,25 +353,37 @@
                 return;
             }
 
-            currentQuizId = 'quiz_' + Date.now();
-            const dataObj = { title, questions };
-            const jsonString = JSON.stringify(dataObj);
-            const encoded = btoa(encodeURIComponent(jsonString));
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.innerText = "⏳ جاري حفظ الاختبار...";
+            saveBtn.disabled = true;
 
-            const fullUrl = `${window.location.origin}${window.location.pathname}?id=${currentQuizId}&data=${encoded}`;
-            
-            document.getElementById('final-link').value = fullUrl;
-            document.getElementById('link-box').classList.remove('hidden');
-            document.getElementById('admin-results-box').classList.remove('hidden');
+            currentQuizId = 'q' + Math.floor(100000 + Math.random() * 900000);
 
-            listenToResults(currentQuizId);
+            database.ref('quizzes/' + currentQuizId).set({
+                title: title,
+                questions: questions
+            }).then(() => {
+                const shortUrl = `${window.location.origin}${window.location.pathname}?id=${currentQuizId}`;
+                document.getElementById('final-link').value = shortUrl;
+                document.getElementById('link-box').classList.remove('hidden');
+                document.getElementById('admin-results-box').classList.remove('hidden');
+                
+                saveBtn.innerText = "💾 حفظ ونشر الاختبار للناس";
+                saveBtn.disabled = false;
+
+                listenToResults(currentQuizId);
+            }).catch((error) => {
+                alert("حدث خطأ أثناء الحفظ، يرجى المحاولة مرة أخرى.");
+                saveBtn.innerText = "💾 حفظ ونشر الاختبار للناس";
+                saveBtn.disabled = false;
+            });
         }
 
         function copyShareLink() {
             const input = document.getElementById('final-link');
             input.select();
             navigator.clipboard.writeText(input.value);
-            alert("تم نسخ الرابط بنجاح! أرسله لأصدقائك.");
+            alert("تم نسخ الرابط القصير بنجاح! يمكنك مشاركته مع أي شخص في الواتساب الآن.");
         }
 
         function listenToResults(qId) {
@@ -402,17 +412,24 @@
         let currentScore = 0;
         let userQuizData = null;
 
-        function loadQuizForUser(encoded) {
-            try {
-                const jsonString = decodeURIComponent(atob(encoded));
-                userQuizData = JSON.parse(jsonString);
-                document.getElementById('user-quiz-title').innerText = userQuizData.title;
-            } catch (e) {
-                alert("الرابط غير صالح.");
-            }
+        function loadQuizFromFirebase(qId) {
+            database.ref('quizzes/' + qId).once('value').then((snapshot) => {
+                userQuizData = snapshot.val();
+                if (userQuizData) {
+                    document.getElementById('user-quiz-title').innerText = userQuizData.title;
+                } else {
+                    alert("عذراً، هذا الاختبار غير موجود أو تم حذفه.");
+                }
+            }).catch(() => {
+                alert("حدث خطأ في تحميل بيانات الاختبار.");
+            });
         }
 
         function startQuizForVisitor() {
+            if (!userQuizData || !userQuizData.questions) {
+                alert("جاري تحميل بيانات الاختبار، يرجى الانتظار ثانية واحدة ثم الضغط مجدداً.");
+                return;
+            }
             const nameInput = document.getElementById('visitor-name').value.trim();
             if (!nameInput) {
                 alert("من فضلك أدخل اسمك أولاً!");
