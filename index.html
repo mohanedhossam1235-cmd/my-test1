@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>منصة الاختبارات والتحديات الخاصة</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-    
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 
     <style>
         :root {
@@ -99,22 +97,6 @@
         }
 
         .hidden { display: none !important; }
-
-        .results-list {
-            margin-top: 15px;
-            background-color: #0f172a;
-            border-radius: 10px;
-            padding: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
-        }
     </style>
 </head>
 <body>
@@ -124,7 +106,7 @@
         <!-- لوحة تحكم الأدمن -->
         <div id="admin-panel">
             <h1>👑 لوحة تحكم الأدمن</h1>
-            <p class="subtitle">أنشئ أسئلتك وشارك رابطاً قصيراً جداً مع أصدقائك!</p>
+            <p class="subtitle">أنشئ أسئلتك وشارك الرابط مع أصدقائك بسهولة!</p>
 
             <div class="input-group">
                 <label>عنوان الاختبار / اسمك:</label>
@@ -175,22 +157,15 @@
             <button class="btn btn-success" id="save-btn" onclick="saveAndGenerateLink()" style="margin-top: 20px;">💾 حفظ ونشر الاختبار للناس</button>
             
             <div id="link-box" class="hidden" style="margin-top: 15px; background: #0f172a; padding: 15px; border-radius: 10px;">
-                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط القصير بنجاح!</p>
-                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 14px; color: #60a5fa; text-align: center; font-weight: bold;">
+                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط بنجاح!</p>
+                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 12px; color: #60a5fa; text-align: center; font-weight: bold;">
                 <button class="btn btn-primary" onclick="copyShareLink()">📋 نسخ الرابط</button>
-            </div>
-
-            <div id="admin-results-box" class="hidden" style="margin-top: 25px;">
-                <h3 style="text-align: right;">📊 من قام بحل الاختبار:</h3>
-                <div class="results-list" id="results-container">
-                    <p style="text-align:center; color: var(--muted);">في انتظار إجابات الأشخاص...</p>
-                </div>
             </div>
         </div>
 
         <!-- واجهة الإجابة للزوار -->
         <div id="user-panel" class="hidden">
-            <h1 id="user-quiz-title">جاري تحميل الاختبار...</h1>
+            <h1 id="user-quiz-title">اختبار جديد</h1>
             
             <div id="user-name-step">
                 <p class="subtitle">من فضلك أدخل اسمك قبل البدء بالاختبار:</p>
@@ -206,31 +181,23 @@
                 <div style="font-size: 50px;">🎯</div>
                 <h2>انتهى الاختبار!</h2>
                 <p id="score-text" style="font-size: 20px; margin-top: 10px; color: var(--success); font-weight: bold;"></p>
-                <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">تم إرسال نتيجتك لصاحب الاختبار بنجاح ✅</p>
+                <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">شكراً لمشاركتك ✅</p>
             </div>
         </div>
 
     </div>
 
     <script>
-        // إعدادات Firebase
-        const firebaseConfig = {
-            databaseURL: "https://quiz-app-demo-default-rtdb.firebaseio.com" 
-        };
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
         let questions = [];
-        let currentQuizId = null;
         let editingIndex = -1;
 
         const urlParams = new URLSearchParams(window.location.search);
-        const quizIdParam = urlParams.get('id');
+        const qData = urlParams.get('q') || urlParams.get('d');
 
-        if (quizIdParam) {
+        if (qData) {
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('user-panel').classList.remove('hidden');
-            loadQuizFromFirebase(quizIdParam);
+            loadQuizFromUrl(qData);
         } else {
             loadLocalData();
         }
@@ -354,84 +321,48 @@
                 return;
             }
 
-            const saveBtn = document.getElementById('save-btn');
-            saveBtn.innerText = "⏳ جاري توليد الرابط القصير...";
-            saveBtn.disabled = true;
+            const quizObj = { t: title, q: questions };
+            const jsonStr = JSON.stringify(quizObj);
+            
+            let compressed = LZString.compressToEncodedURIComponent(jsonStr);
 
-            currentQuizId = 'q' + Math.floor(100000 + Math.random() * 900000);
+            const fullUrl = `${window.location.origin}${window.location.pathname}?q=${compressed}`;
 
-            database.ref('quizzes/' + currentQuizId).set({
-                title: title,
-                questions: questions
-            }).then(() => {
-                const shortUrl = `${window.location.origin}${window.location.pathname}?id=${currentQuizId}`;
-                document.getElementById('final-link').value = shortUrl;
-                document.getElementById('link-box').classList.remove('hidden');
-                document.getElementById('admin-results-box').classList.remove('hidden');
-                
-                saveBtn.innerText = "💾 حفظ ونشر الاختبار للناس";
-                saveBtn.disabled = false;
-
-                listenToResults(currentQuizId);
-            }).catch(() => {
-                // في حالة انقطاع الاتصال بقاعدة البيانات، ننشئ رابطاً يعمل محلياً
-                const shortUrl = `${window.location.origin}${window.location.pathname}?id=${currentQuizId}`;
-                document.getElementById('final-link').value = shortUrl;
-                document.getElementById('link-box').classList.remove('hidden');
-                saveBtn.innerText = "💾 حفظ ونشر الاختبار للناس";
-                saveBtn.disabled = false;
-            });
+            document.getElementById('final-link').value = fullUrl;
+            document.getElementById('link-box').classList.remove('hidden');
         }
 
         function copyShareLink() {
             const input = document.getElementById('final-link');
             input.select();
             navigator.clipboard.writeText(input.value);
-            alert("تم نسخ الرابط القصير بنجاح! يمكنك إرساله لأصدقائك.");
-        }
-
-        function listenToResults(qId) {
-            database.ref('results/' + qId).on('value', (snapshot) => {
-                const container = document.getElementById('results-container');
-                container.innerHTML = '';
-                const data = snapshot.val();
-
-                if (!data) {
-                    container.innerHTML = '<p style="text-align:center; color: var(--muted);">في انتظار أول من يحل الاختبار...</p>';
-                    return;
-                }
-
-                Object.values(data).forEach(item => {
-                    container.innerHTML += `
-                        <div class="result-item">
-                            <span>👤 <strong>${item.name}</strong></span>
-                            <span style="color: var(--success); font-weight: bold;">النتيجة: ${item.score} / ${item.total}</span>
-                        </div>
-                    `;
-                });
-            });
+            alert("تم نسخ الرابط بنجاح! شاركه مع أصدقائك.");
         }
 
         let visitorName = '';
         let currentScore = 0;
         let userQuizData = null;
 
-        function loadQuizFromFirebase(qId) {
-            database.ref('quizzes/' + qId).once('value').then((snapshot) => {
-                userQuizData = snapshot.val();
-                if (userQuizData) {
-                    document.getElementById('user-quiz-title').innerText = userQuizData.title;
-                } else {
-                    alert("عذراً، لم نتمكن من العثور على هذا الاختبار.");
+        function loadQuizFromUrl(dataParam) {
+            try {
+                let jsonStr = LZString.decompressFromEncodedURIComponent(dataParam);
+                if (!jsonStr) {
+                    jsonStr = decodeURIComponent(atob(dataParam));
                 }
-            }).catch(() => {
-                alert("حدث خطأ في تحميل الاختبار.");
-            });
+                const parsed = JSON.parse(jsonStr);
+                userQuizData = {
+                    title: parsed.t || parsed.title,
+                    questions: parsed.q || parsed.questions
+                };
+                document.getElementById('user-quiz-title').innerText = userQuizData.title;
+            } catch(e) {
+                alert("الرابط غير صالح.");
+            }
         }
 
         function startQuizForVisitor() {
             if (!userQuizData || !userQuizData.questions) {
-                alert("جاري تحميل الأسئلة، حاول مجدداً بعد ثوانٍ قليلة.");
+                alert("خطأ في بيانات الاختبار.");
                 return;
             }
             const nameInput = document.getElementById('visitor-name').value.trim();
@@ -450,15 +381,6 @@
                 document.getElementById('quiz-container').classList.add('hidden');
                 document.getElementById('user-result').classList.remove('hidden');
                 document.getElementById('score-text').innerText = `حصلت على ${currentScore} من ${userQuizData.questions.length}`;
-
-                if (quizIdParam) {
-                    database.ref('results/' + quizIdParam).push({
-                        name: visitorName,
-                        score: currentScore,
-                        total: userQuizData.questions.length,
-                        timestamp: Date.now()
-                    });
-                }
                 return;
             }
 
