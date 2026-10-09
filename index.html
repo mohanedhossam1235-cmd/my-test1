@@ -128,7 +128,7 @@
 
             <div class="input-group">
                 <label>عنوان الاختبار / اسمك:</label>
-                <input type="text" id="quiz-title-input" placeholder="مثال: اختبار الأصدقاء 🎯">
+                <input type="text" id="quiz-title-input" placeholder="مثال: اختبار الأصدقاء 🎯" oninput="saveLocalData()">
             </div>
 
             <hr style="border-color: var(--border); margin: 20px 0;">
@@ -165,7 +165,10 @@
             <button class="btn btn-danger hidden" id="cancel-edit-btn" onclick="cancelEdit()">❌ إلغاء التعديل</button>
 
             <div style="margin-top: 20px;">
-                <h4>الأسئلة المضافة (<span id="q-count">0</span>):</h4>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4>الأسئلة المضافة (<span id="q-count">0</span>):</h4>
+                    <button onclick="clearAllData()" style="background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer;">🗑️ مسح كل الأسئلة</button>
+                </div>
                 <div id="questions-list" style="margin-top: 10px;"></div>
             </div>
 
@@ -228,6 +231,38 @@
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('user-panel').classList.remove('hidden');
             loadQuizForUser(encodedData);
+        } else {
+            // تحميل البيانات المحفوظة محلياً إن وجدت
+            loadLocalData();
+        }
+
+        function saveLocalData() {
+            const title = document.getElementById('quiz-title-input').value;
+            localStorage.setItem('saved_quiz_title', title);
+            localStorage.setItem('saved_quiz_questions', JSON.stringify(questions));
+        }
+
+        function loadLocalData() {
+            const savedTitle = localStorage.getItem('saved_quiz_title');
+            const savedQuestions = localStorage.getItem('saved_quiz_questions');
+
+            if (savedTitle) {
+                document.getElementById('quiz-title-input').value = savedTitle;
+            }
+            if (savedQuestions) {
+                try {
+                    questions = JSON.parse(savedQuestions) || [];
+                    renderQuestionsList();
+                } catch(e) {}
+            }
+        }
+
+        function clearAllData() {
+            if (confirm("هل أنت تأكد من رغبتك في مسح كل الأسئلة والبدء من جديد؟")) {
+                questions = [];
+                localStorage.removeItem('saved_quiz_questions');
+                renderQuestionsList();
+            }
         }
 
         function addQuestion() {
@@ -251,6 +286,7 @@
                 clearInputs();
             }
 
+            saveLocalData();
             renderQuestionsList();
         }
 
