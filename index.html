@@ -19,6 +19,7 @@
             --muted: #94a3b8;
             --border: #334155;
             --success: #10b981;
+            --warning: #f59e0b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
@@ -61,10 +62,22 @@
         }
         .btn-primary { background-color: var(--primary); }
         .btn-success { background-color: var(--success); }
+        .btn-warning { background-color: var(--warning); }
+        .btn-danger { background-color: var(--accent); }
 
         .question-card {
             background: #0f172a; padding: 15px; border-radius: 10px;
             border: 1px solid var(--border); margin-bottom: 15px;
+            position: relative;
+        }
+
+        .q-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+        }
+
+        .btn-edit-sm {
+            background: #3b82f6; border: none; color: white; padding: 5px 10px;
+            border-radius: 6px; font-size: 12px; cursor: pointer;
         }
 
         .option-btn {
@@ -120,7 +133,7 @@
 
             <hr style="border-color: var(--border); margin: 20px 0;">
 
-            <h3>إضافة سؤال جديد:</h3>
+            <h3 id="form-title">إضافة سؤال جديد:</h3>
             <div class="input-group">
                 <label>السؤال:</label>
                 <input type="text" id="q-text" placeholder="اكتب السؤال هنا...">
@@ -148,7 +161,8 @@
                 </select>
             </div>
 
-            <button class="btn btn-primary" onclick="addQuestion()">➕ إضافة السؤال للقائمة</button>
+            <button class="btn btn-primary" id="add-btn" onclick="addQuestion()">➕ إضافة السؤال للقائمة</button>
+            <button class="btn btn-danger hidden" id="cancel-edit-btn" onclick="cancelEdit()">❌ إلغاء التعديل</button>
 
             <div style="margin-top: 20px;">
                 <h4>الأسئلة المضافة (<span id="q-count">0</span>):</h4>
@@ -204,6 +218,7 @@
 
         let questions = [];
         let currentQuizId = null;
+        let editingIndex = -1;
 
         const urlParams = new URLSearchParams(window.location.search);
         const encodedData = urlParams.get('data');
@@ -227,12 +242,54 @@
                 return;
             }
 
-            questions.push({ text, options: [opt1, opt2, opt3], correct });
+            if (editingIndex > -1) {
+                questions[editingIndex] = { text, options: [opt1, opt2, opt3], correct };
+                editingIndex = -1;
+                resetForm();
+            } else {
+                questions.push({ text, options: [opt1, opt2, opt3], correct });
+                clearInputs();
+            }
+
+            renderQuestionsList();
+        }
+
+        function editQuestion(index) {
+            editingIndex = index;
+            const q = questions[index];
+            document.getElementById('q-text').value = q.text;
+            document.getElementById('opt1').value = q.options[0];
+            document.getElementById('opt2').value = q.options[1];
+            document.getElementById('opt3').value = q.options[2];
+            document.getElementById('correct-opt').value = q.correct;
+
+            document.getElementById('form-title').innerText = "تعديل السؤال رقم " + (index + 1) + ":";
+            const addBtn = document.getElementById('add-btn');
+            addBtn.innerText = "💾 حفظ التعديلات";
+            addBtn.className = "btn btn-warning";
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+        }
+
+        function cancelEdit() {
+            editingIndex = -1;
+            resetForm();
+        }
+
+        function resetForm() {
+            clearInputs();
+            document.getElementById('form-title').innerText = "إضافة سؤال جديد:";
+            const addBtn = document.getElementById('add-btn');
+            addBtn.innerText = "➕ إضافة السؤال للقائمة";
+            addBtn.className = "btn btn-primary";
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+        function clearInputs() {
             document.getElementById('q-text').value = '';
             document.getElementById('opt1').value = '';
             document.getElementById('opt2').value = '';
             document.getElementById('opt3').value = '';
-            renderQuestionsList();
+            document.getElementById('correct-opt').value = '0';
         }
 
         function renderQuestionsList() {
@@ -243,7 +300,10 @@
             questions.forEach((q, index) => {
                 list.innerHTML += `
                     <div class="question-card">
-                        <strong>س${index + 1}: ${q.text}</strong>
+                        <div class="q-header">
+                            <strong>س${index + 1}: ${q.text}</strong>
+                            <button class="btn-edit-sm" onclick="editQuestion(${index})">تعديل ✏️</button>
+                        </div>
                         <div style="font-size: 13px; color: var(--muted); margin-top: 5px;">
                             1. ${q.options[0]} | 2. ${q.options[1]} | 3. ${q.options[2]}
                         </div>
