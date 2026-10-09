@@ -6,8 +6,8 @@
     <title>منصة الاختبارات والتحديات الخاصة</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
     
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- مكتبة لضغط الروابط وجعلها قصيرة جداً -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 
     <style>
         :root {
@@ -99,22 +99,6 @@
         }
 
         .hidden { display: none !important; }
-
-        .results-list {
-            margin-top: 15px;
-            background-color: #0f172a;
-            border-radius: 10px;
-            padding: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-            font-size: 14px;
-        }
     </style>
 </head>
 <body>
@@ -124,7 +108,7 @@
         <!-- لوحة تحكم الأدمن -->
         <div id="admin-panel">
             <h1>👑 لوحة تحكم الأدمن</h1>
-            <p class="subtitle">أنشئ أسئلتك وتابع نتائج كل شخص يحل الاختبار مباشرة!</p>
+            <p class="subtitle">أنشئ أسئلتك وشارك الرابط مع أصدقائك بسهولة!</p>
 
             <div class="input-group">
                 <label>عنوان الاختبار / اسمك:</label>
@@ -175,16 +159,9 @@
             <button class="btn btn-success" id="save-btn" onclick="saveAndGenerateLink()" style="margin-top: 20px;">💾 حفظ ونشر الاختبار للناس</button>
             
             <div id="link-box" class="hidden" style="margin-top: 15px; background: #0f172a; padding: 15px; border-radius: 10px;">
-                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط بنجاح! شاركه مع الآخرين:</p>
-                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 13px; color: #60a5fa; text-align: center; font-weight: bold;">
+                <p style="font-size: 14px; color: var(--success);">✅ تم إنشاء الرابط المضغوط بنجاح!</p>
+                <input type="text" id="final-link" readonly style="margin: 10px 0; font-size: 12px; color: #60a5fa; text-align: center; font-weight: bold;">
                 <button class="btn btn-primary" onclick="copyShareLink()">📋 نسخ الرابط</button>
-            </div>
-
-            <div id="admin-results-box" class="hidden" style="margin-top: 25px;">
-                <h3 style="text-align: right;">📊 من قام بحل الاختبار:</h3>
-                <div class="results-list" id="results-container">
-                    <p style="text-align:center; color: var(--muted);">في انتظار إجابات الأشخاص...</p>
-                </div>
             </div>
         </div>
 
@@ -206,7 +183,7 @@
                 <div style="font-size: 50px;">🎯</div>
                 <h2>انتهى الاختبار!</h2>
                 <p id="score-text" style="font-size: 20px; margin-top: 10px; color: var(--success); font-weight: bold;"></p>
-                <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">تم إرسال نتيجتك لصاحب الاختبار بنجاح ✅</p>
+                <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">شكراً لمشاركتك ✅</p>
             </div>
         </div>
 
@@ -214,17 +191,15 @@
 
     <script>
         let questions = [];
-        let currentQuizId = null;
         let editingIndex = -1;
 
         const urlParams = new URLSearchParams(window.location.search);
-        const encodedData = urlParams.get('d');
-        const quizIdParam = urlParams.get('id');
+        const compressedData = urlParams.get('q');
 
-        if (encodedData) {
+        if (compressedData) {
             document.getElementById('admin-panel').classList.add('hidden');
             document.getElementById('user-panel').classList.remove('hidden');
-            loadQuizFromUrl(encodedData);
+            loadQuizFromUrl(compressedData);
         } else {
             loadLocalData();
         }
@@ -348,33 +323,33 @@
                 return;
             }
 
-            currentQuizId = 'q' + Date.now();
             const quizObj = { t: title, q: questions };
             const jsonStr = JSON.stringify(quizObj);
-            const encoded = btoa(encodeURIComponent(jsonStr));
+            
+            // ضغط البيانات بأقصى درجة ممكنة
+            const compressed = LZString.compressToEncodedURIComponent(jsonStr);
 
-            const fullUrl = `${window.location.origin}${window.location.pathname}?id=${currentQuizId}&d=${encoded}`;
+            const fullUrl = `${window.location.origin}${window.location.pathname}?q=${compressed}`;
 
             document.getElementById('final-link').value = fullUrl;
             document.getElementById('link-box').classList.remove('hidden');
-            document.getElementById('admin-results-box').classList.remove('hidden');
         }
 
         function copyShareLink() {
             const input = document.getElementById('final-link');
             input.select();
             navigator.clipboard.writeText(input.value);
-            alert("تم نسخ الرابط بنجاح! شاركه الآن.");
+            alert("تم نسخ الرابط المباشر بنجاح! أرسله لأصدقائك.");
         }
 
         let visitorName = '';
         let currentScore = 0;
         let userQuizData = null;
 
-        function loadQuizFromUrl(encoded) {
+        function loadQuizFromUrl(compressed) {
             try {
-                const decodedJson = decodeURIComponent(atob(encoded));
-                const parsed = JSON.parse(decodedJson);
+                const decompressed = LZString.decompressFromEncodedURIComponent(compressed);
+                const parsed = JSON.parse(decompressed);
                 userQuizData = {
                     title: parsed.t,
                     questions: parsed.q
@@ -387,7 +362,7 @@
 
         function startQuizForVisitor() {
             if (!userQuizData || !userQuizData.questions) {
-                alert("خطأ في بيانات الاختبار.");
+                alert("خطأ في تحميل بيانات الاختبار.");
                 return;
             }
             const nameInput = document.getElementById('visitor-name').value.trim();
